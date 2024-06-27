@@ -6,6 +6,9 @@ import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { signIn } from '@/auth';
 import { AuthError } from 'next-auth';
+import {v4 as uuidv4} from 'uuid';
+
+const emailRegex = /^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i;
 
 const FormSchema = z.object({
     id: z.string(),
@@ -19,8 +22,18 @@ const FormSchema = z.object({
     date: z.string()
 })
 
+const CustomerFormSchema = z.object({
+    id: z.string(),
+    name: z.string().min(2, "Name must have at least 2 characters"),
+    email: z.string().regex(emailRegex, {message: "Please enter a valid email"}),
+    image_url: z.string(),
+})
+
+
 const CreateInvoice = FormSchema.omit({ id: true, date: true });
 const UpdateInvoice = FormSchema.omit({ id: true, date: true });
+
+const AddCustomer = CustomerFormSchema.omit({id: true, image_url: true});
 
 export type State = {
     errors?: {
@@ -30,6 +43,15 @@ export type State = {
     };
     message?: string | null;
 };
+
+export type CustomerState = {
+    errors?: {
+        name?:string[];
+        email?: string[];
+    };
+    message?: string | null;
+}
+
 export async function createInvoice(prevState: State, formData: FormData) {
     const validatedFields = CreateInvoice.safeParse({
         customerId: formData.get('customerId'),
@@ -106,6 +128,40 @@ export async function deleteInvoice(id: string) {
     } catch (error) {
         return { message: 'Database Error: Failed to Delete Invoice.' };
     }
+}
+
+export async function addNewCustomer(prevState: CustomerState, formData: FormData) {
+    const validatedFields = AddCustomer.safeParse({
+        name: formData.get("name"),
+        email: formData.get("email"),
+    });
+
+    if(!validatedFields.success) {
+        return {
+            errors: validatedFields.error.flatten().fieldErrors,
+            message: "Missing Fields. Failed to Add Customer",
+        };
+    }
+
+    const {name, email} = validatedFields.data;
+    const id = uuidv4();
+    const image_url = '/customers/emil-kowalski.png'; // random image from assets
+
+    try {
+        await sql`
+        INSERT INTO customers (id, name, email, image_url)
+        VALUES (${id}, ${name}, ${email}, ${image_url})
+        ON CONFLICT (id) DO NOTHING
+        `;
+    }
+    catch (error) {
+        return {
+            message: 'Database Error: Failed to Add Customer',
+        }
+    }
+
+    revalidatePath('/dashboard/customers');
+    redirect('/dashboard/customers');
 }
 
 export async function authenticate(
