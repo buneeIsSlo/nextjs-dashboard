@@ -195,6 +195,16 @@ export async function updateCustomer(id:string, prevState: CustomerState, formDa
     redirect('/dashboard/customers');
 }
 
+export async function deleteCustomer(id: string) {
+    try {
+        await sql`DELETE FROM customers WHERE id = ${id}`;
+        revalidatePath('/dashboard/customers');
+        return { message: 'Deleted Customer' };
+    } catch (error) {
+        return { message: 'Database Error: Failed to Delete Customer.' };
+    }
+}
+
 export async function authenticate(
     prevState: string | undefined,
     formData: FormData,
