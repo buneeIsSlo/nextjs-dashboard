@@ -34,6 +34,7 @@ const CreateInvoice = FormSchema.omit({ id: true, date: true });
 const UpdateInvoice = FormSchema.omit({ id: true, date: true });
 
 const AddCustomer = CustomerFormSchema.omit({id: true, image_url: true});
+const UpdateCustomer = CustomerFormSchema.omit({id: true, image_url: true});
 
 export type State = {
     errors?: {
@@ -158,6 +159,36 @@ export async function addNewCustomer(prevState: CustomerState, formData: FormDat
         return {
             message: 'Database Error: Failed to Add Customer',
         }
+    }
+
+    revalidatePath('/dashboard/customers');
+    redirect('/dashboard/customers');
+}
+
+export async function updateCustomer(id:string, prevState: CustomerState, formData: FormData) {
+    const validatedFields = UpdateCustomer.safeParse({
+        name: formData.get("name"),
+        email: formData.get("email"),
+    });
+
+    if(!validatedFields.success) {
+        return {
+            errors: validatedFields.error.flatten().fieldErrors,
+            message: 'Missing Fields. Failed to Update Customer.'
+        }
+    };
+
+    const {name, email} = validatedFields.data;
+
+    try {
+        await sql`
+        UPDATE customers
+        SET name = ${name}, email = ${email}
+        WHERE id = ${id}
+        `;
+    }
+    catch (error) {
+        return {message: 'Database Error: Failed to Update Customer'};
     }
 
     revalidatePath('/dashboard/customers');
